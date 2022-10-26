@@ -15,12 +15,16 @@ function waitUntilIceGatheringComplete (pc: RTCPeerConnection): Promise<void> {
         })
     })
 }
+
 async function main () {
     let offBtn = document.getElementById("btnCreateOffer") as HTMLButtonElement
-    let ansBtn = document.getElementById("btnCreateAnswer") as HTMLButtonElement
     const ipt = document.getElementById("ipt") as HTMLTextAreaElement
 
-    const pc = new RTCPeerConnection()
+    const pc = new RTCPeerConnection({
+        iceServers: [
+            { urls: "stun:stun.bluesip.net:3478" }
+        ]
+    })
     logEvent(pc, "connectionstatechange")
     logEvent(pc, "datachannel")
     logEvent(pc, "icecandidate")
@@ -41,10 +45,45 @@ async function main () {
         }
     })
 
-    offBtn.addEventListener("click", async function(evt: MouseEvent) {
-        if (ansBtn) {
-            ansBtn.parentElement.removeChild(ansBtn)
-            ansBtn = null
+    const store = { list: [] }
+
+    const ws = new WebSocket(`ws://${location.hostname}:8080/signaling`)
+    ws.addEventListener("message", async (evt: MessageEvent) => {
+        const msg = JSON.parse(evt.data)
+        console.log("ws.message: ", msg)
+        switch (msg.Type) {
+            case "list":
+                console.log("getList: ", msg.Data.List)
+                store.list = msg.Data.List
+                break
+            case "offer":
+                offBtn.innerText = "send"
+
+                await pc.setRemoteDescription(msg.Data.Data)
+                const ans = await pc.createAnswer()
+                await pc.setLocalDescription(ans)
+                await waitUntilIceGatheringComplete(pc)
+                ws.send(JSON.stringify({ Type: "answer", Data: { To: msg.Data.From, Data: pc.localDescription } }))
+                break
+            case "answer":
+                offBtn.innerText = "send"
+                await pc.setRemoteDescription(msg.Data.Data)
+                ipt.value = ""
+                break
+            case "newClient":
+                store.list = [msg.Data.Name]
+                break
+        }
+    })
+    window["ws"] = ws
+    ws.addEventListener("open", () => {
+        ws.send(JSON.stringify({ Type: "list" }))
+    })
+
+
+
+    offBtn.addEventListener("click", async () => {
+        if (pc.connectionState === "new") {
             offBtn.innerText = "setAnswer"
 
 
@@ -53,35 +92,13 @@ async function main () {
             const offer = await pc.createOffer()
             pc.setLocalDescription(offer)
             await waitUntilIceGatheringComplete(pc)
+            ws.send(JSON.stringify({ Type: "offer", Data: { To: store.list[0], Data: pc.localDescription } }))
             ipt.value = JSON.stringify(pc.localDescription)
-        } else if (dc && dc.readyState == "connecting") {
-            offBtn.innerText = "send"
-
-            const ans = JSON.parse(ipt.value)
-            await pc.setRemoteDescription(ans)
-            ipt.value = ""
-        } else if (dc) {
+        } else {
             dc.send(ipt.value)
             ipt.value = ""
         }
     })
-
-    ansBtn.addEventListener("click", async function(evt: MouseEvent) {
-        if (ansBtn) {
-            offBtn.innerText = "send"
-            ansBtn.parentElement.removeChild(ansBtn)
-            ansBtn = null
-
-            const offer = JSON.parse(ipt.value)
-            await pc.setRemoteDescription(offer)
-            const ans = await pc.createAnswer()
-            await pc.setLocalDescription(ans)
-            await waitUntilIceGatheringComplete(pc)
-            ipt.value = JSON.stringify(pc.localDescription)
-        }
-    })
-
-
 
 }
 
