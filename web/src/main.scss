@@ -1,0 +1,18 @@
+body {
+        background-color:grey;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color:white;
+        min-height: 100%;
+
+        .ipt {
+                margin-bottom: 20px;
+                width: 400px;
+                height:300px;
+        }
+}
+.dp-block{
+        display: block
+}
