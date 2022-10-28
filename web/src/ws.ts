@@ -1,4 +1,4 @@
-import { callOutData, wsReq, wsReqMsg } from "./msgs"
+import { callOutData, wsReq, wsReqMsg, wsEvtMsg } from "./msgs"
 
 const ws = new WebSocket(`ws://${location.hostname}:8080/signaling`)
 
@@ -6,10 +6,20 @@ ws.addEventListener("message", (evt: MessageEvent) => {
     console.log("[ws][message]:", evt)
 })
 
-export function registerMsgHandler<T> (handler: (msg: T) => any) {
+export function registerMsgHandler<T = wsEvtMsg> (handler: (msg: T) => any) {
     ws.addEventListener("message", (evt: MessageEvent) => {
         const msg = JSON.parse(evt.data)
         handler(msg)
+    })
+}
+
+export function onOpen (handler: () => any) {
+    if (ws.readyState === ws.OPEN) {
+        return handler()
+    }
+    ws.addEventListener("open", function onOpenEvt () {
+        ws.removeEventListener("open", onOpenEvt)
+        handler()
     })
 }
 

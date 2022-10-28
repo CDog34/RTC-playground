@@ -5,7 +5,7 @@ export enum wsEvt {
     List = "list",
 }
 
-export interface wsEvtMsg<T> {
+export interface wsEvtMsg<T = any> {
     Type: wsEvt
     Data: T
 }
@@ -38,3 +38,18 @@ export interface callOutData {
     To: string
     Data: RTCSessionDescription
 }
+
+export enum peerMsgType {
+    Text = "text",
+}
+
+export interface peerMsg {
+    Type: peerMsgType,
+    Data: string
+}
+
+export interface peerMsgSender {
+    From: string
+    Msg: peerMsg
+}
+

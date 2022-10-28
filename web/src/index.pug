@@ -1,11 +1,14 @@
 html(lang="zh-CN")
   head
     meta(charset="utf-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")
     title RTC Playground
     link(rel="stylesheet", href="main.scss")
   body
-    h1 Hello, RTC!
-    textarea#ipt.dp-block.ipt
-    button#btnCreateOffer createOffer
-
+    .layout-ctnr
+        .msgs-ctnr#msgCtnr
+                          
+        .ctrl-ctnr
+            textarea.ipt-area#ipt(placeholder="请在此输入")
+            button.submit-btn#submitBtn 广播
     script(src="./main.ts",type="module")
