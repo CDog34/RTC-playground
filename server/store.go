@@ -12,11 +12,11 @@ func newStore() *store {
 	}
 }
 
-func (s *store) Register(name string, ch chan<- signalingResponse) {
+func (s *store) Register(name string, ch chan<- signalingEvent) {
 	s.storage.Store(name, ch)
 }
 
-func (s *store) Cancel(name string) {
+func (s *store) Remove(name string) {
 	s.storage.Delete(name)
 }
 
@@ -36,19 +36,19 @@ func (s *store) List(except string) (res []string) {
 	return
 }
 
-func (s *store) SendTo(name string, data signalingResponse) {
+func (s *store) SendTo(name string, data signalingEvent) {
 	v, ok := s.storage.Load(name)
 	if !ok {
 		return
 	}
-	ch, ok := v.(chan<- signalingResponse)
+	ch, ok := v.(chan<- signalingEvent)
 	if !ok {
 		return
 	}
 	ch <- data
 }
 
-func (s *store) Broadcast(except string, data signalingResponse) {
+func (s *store) Broadcast(except string, data signalingEvent) {
 	s.storage.Range(func(key, value interface{}) bool {
 		k, ok := key.(string)
 		if !ok {
@@ -57,7 +57,7 @@ func (s *store) Broadcast(except string, data signalingResponse) {
 		if k == except {
 			return true
 		}
-		v, ok := value.(chan<- signalingResponse)
+		v, ok := value.(chan<- signalingEvent)
 		if !ok {
 			return true
 		}

@@ -1,18 +1,20 @@
-export enum wsEvt {
+export enum signalingType {
     Offer = "offer",
     Answer = "answer",
     NewClient = "newClient",
     List = "list",
+    ICECandidate = "iceCandidate",
+    Hello = "hello",
 }
 
-export interface wsEvtMsg<T = any> {
-    Type: wsEvt
-    Data: T
+export interface signalingMsg<T = null> {
+    Type: signalingType
+    Data?: T
 }
 
-export interface callInData {
+export interface callInData<T = RTCSessionDescription> {
     From: string
-    Data: RTCSessionDescription
+    Data: T
 }
 
 export interface listData {
@@ -23,20 +25,9 @@ export interface clientData {
     Name: string
 }
 
-export enum wsReq {
-    Offer = "offer",
-    Answer = "answer",
-    List = "list",
-}
-
-export interface wsReqMsg<T = null> {
-    Type: wsReq
-    Data?: T
-}
-
-export interface callOutData {
+export interface callOutData<T = RTCSessionDescription> {
     To: string
-    Data: RTCSessionDescription
+    Data: T
 }
 
 export enum peerMsgType {

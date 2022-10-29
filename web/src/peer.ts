@@ -1,11 +1,11 @@
 import { peerMsgSender } from "./msgs"
-import { sendOffer, sendAnswer } from "./ws"
+import { sendOffer, sendAnswer, sendICECandidate } from "./ws"
 function logEvent (pc: RTCPeerConnection, name: string, eventName: string) {
     pc.addEventListener(eventName, console.debug.bind(null, `[RTCPeerConnection][${name}][${eventName}]:`))
 }
 
 export class Peer {
-    public conn: RTCPeerConnection
+    public readonly conn: RTCPeerConnection
     public dataChannel: RTCDataChannel
     public onMsgHandler: (msg: peerMsgSender) => any
 
@@ -14,8 +14,8 @@ export class Peer {
             iceServers: [
                 // { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" },
-                // { urls: "stun:stun2.l.google.com:19302" },
-                // { urls: "stun:stun3.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+                { urls: "stun:stun3.l.google.com:19302" },
                 // { urls: "stun:stun4.l.google.com:19302" }
             ]
         })
@@ -29,9 +29,13 @@ export class Peer {
         logEvent(pc, name, "signalingstatechange")
         logEvent(pc, name, "track")
         pc.addEventListener("connectionstatechange", function onCC () {
-            if (pc.connectionState === "failed") {
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+                pc.close()
                 onDestory()
             }
+        })
+        pc.addEventListener("icecandidate", (evt: RTCPeerConnectionIceEvent) => {
+            sendICECandidate(name, evt.candidate)
         })
         this.conn = pc
     }
@@ -40,7 +44,6 @@ export class Peer {
         this.setupDataChannel(this.conn.createDataChannel("nep"))
         const offer = await this.conn.createOffer()
         await this.conn.setLocalDescription(offer)
-        await this.waitUntilIceGatheringComplete()
         sendOffer(this.name, this.conn.localDescription)
     }
 
@@ -48,7 +51,6 @@ export class Peer {
         await this.conn.setRemoteDescription(offer)
         const answer = await this.conn.createAnswer()
         await this.conn.setLocalDescription(answer)
-        await this.waitUntilIceGatheringComplete()
         const inst = this
         this.conn.addEventListener("datachannel", function ondatachannel (evt: RTCDataChannelEvent) {
             inst.conn.removeEventListener("datachannel", ondatachannel)
@@ -62,7 +64,7 @@ export class Peer {
     }
 
     public sendMsg<T> (msg: T) {
-        this.sendMsg(JSON.stringify(msg))
+        this.sendTextMsg(JSON.stringify(msg))
     }
 
     public sendTextMsg (msg: string) {
@@ -84,28 +86,13 @@ export class Peer {
         this.onMsgHandler = h
     }
 
-    private waitUntilIceGatheringComplete (): Promise<void> {
-        if (this.conn.iceGatheringState === "complete") {
-            return Promise.resolve()
-        }
-        return new Promise(res => {
-            const conn = this.conn
-            this.conn.addEventListener("icegatheringstatechange", function onStateChange () {
-                if (conn.iceGatheringState === "complete") {
-                    res()
-                    conn.removeEventListener("icegatheringstatechange", onStateChange)
-                }
-            })
-        })
-    }
-
     private setupDataChannel (dc: RTCDataChannel) {
         if (this.dataChannel) {
             return
         }
         this.dataChannel = dc
         this.dataChannel.addEventListener("message", (msg: MessageEvent) => {
-            console.log(`[RTCPeerConnection][${this.name}][RTCDataChannel][message]:`, msg)
+            console.debug(`[RTCPeerConnection][${this.name}][RTCDataChannel][message]:`, msg)
             if (this.onMsgHandler) {
                 const bmsg = JSON.parse(msg.data)
                 this.onMsgHandler({

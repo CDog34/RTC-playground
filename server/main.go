@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"time"
+	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -18,78 +17,43 @@ var (
 	}
 )
 
-func handleCall(instName string, req signalingRequest, outType signalingRespType) (to string, res signalingResponse, err error) {
+func handleCall(instName string, req signalingEvent) (to string, res signalingEvent, err error) {
 	var reqData callInData
 	if err = json.Unmarshal(req.Data, &reqData); err != nil {
 		return
 	}
-	res = signalingResponse{Type: outType}
+	res = signalingEvent{Type: req.Type}
 	to = reqData.To
 	res.Data, err = json.Marshal(callOutData{From: instName, Data: reqData.Data})
 	return
 }
 
+func registerPeerToSore(s *store) IncommingCbk {
+	return func(name string, wch chan<- signalingEvent) {
+		s.Register(name, wch)
+		bmsg := signalingEvent{Type: signalingTypeNewClient}
+		bmsg.Data, _ = json.Marshal(clientData{Name: name})
+		s.Broadcast(name, bmsg)
+	}
+}
+
 func main() {
 	store := newStore()
+	registerPeer := registerPeerToSore(store)
 	http.HandleFunc("/signaling", func(rw http.ResponseWriter, r *http.Request) {
 		wsconn, err := upgrader.Upgrade(rw, r, nil)
 		if err != nil {
 			fmt.Printf("ws upgrade error: %+v\n", err)
 			return
 		}
-		writeCh := make(chan signalingResponse, 10)
-		instName := strconv.FormatInt(time.Now().UnixNano(), 16)
-		store.Register(instName, writeCh)
-		ncmsg := signalingResponse{Type: signalingRespTypeNewClient}
-		ncmsg.Data, err = json.Marshal(clientData{Name: instName})
-		if err != nil {
-			fmt.Printf("ws broadcast error: %+v\n", err)
-		}
-		store.Broadcast(instName, ncmsg)
-
+		p := newPeer(wsconn)
+		p.RegisterMsgExchangeCbks(registerPeer, store.SendTo, store.List)
 		defer func() {
-			close(writeCh)
-			store.Cancel(instName)
-			wsconn.Close()
+			p.Close()
+			store.Remove(p.Name)
 		}()
-		go func() {
-			for msg := range writeCh {
-				if err := wsconn.WriteJSON(msg); err != nil {
-					fmt.Printf("ws write error: %+v\n", err)
-				}
-			}
-		}()
-		for {
-			var req signalingRequest
-			if err = wsconn.ReadJSON(&req); err != nil {
-				if err != nil {
-					fmt.Printf("ws read json failed: %+v\n", err)
-					return
-				}
-			}
-			fmt.Printf("ws msg: %+v\n", req)
-			switch req.Type {
-			case signalingReqTypeList:
-				res := signalingResponse{Type: signalingRespTypeList}
-				res.Data, err = json.Marshal(listData{List: store.List(instName)})
-				if err != nil {
-					fmt.Printf("ws write json failed: %+v\n", err)
-					continue
-				}
-				writeCh <- res
-			case signalingReqTypeOffer:
-				to, res, err := handleCall(instName, req, signalingRespTypeOffer)
-				if err != nil {
-					fmt.Printf("ws write json failed: %+v\n", err)
-				}
-				store.SendTo(to, res)
-			case signalingReqTypeAnswer:
-				to, res, err := handleCall(instName, req, signalingRespTypeAnswer)
-				if err != nil {
-					fmt.Printf("ws write json failed: %+v\n", err)
-				}
-				store.SendTo(to, res)
-			}
+		if err = p.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "WS connection error, Peer: %+v, errror: %+v\n", p, err)
 		}
 	})
 	http.ListenAndServe(":8080", nil)

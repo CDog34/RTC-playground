@@ -2,31 +2,20 @@ package main
 
 import "encoding/json"
 
-type signalingReqType string
+type signalingType string
 
 const (
-	signalingReqTypeList   signalingReqType = "list"
-	signalingReqTypeOffer  signalingReqType = "offer"
-	signalingReqTypeAnswer signalingReqType = "answer"
+	signalingTypeNone         signalingType = ""
+	signalingTypeList         signalingType = "list"
+	signalingTypeNewClient    signalingType = "newClient"
+	signalingTypeOffer        signalingType = "offer"
+	signalingTypeAnswer       signalingType = "answer"
+	signalingTypeICECandidate signalingType = "iceCandidate"
+	signalingTypeHello        signalingType = "hello"
 )
 
-type signalingRequest struct {
-	Type signalingReqType
-	Data json.RawMessage
-}
-
-type signalingRespType string
-
-const (
-	signalingRespTypeNone      signalingRespType = ""
-	signalingRespTypeList      signalingRespType = "list"
-	signalingRespTypeNewClient signalingRespType = "newClient"
-	signalingRespTypeOffer     signalingRespType = "offer"
-	signalingRespTypeAnswer    signalingRespType = "answer"
-)
-
-type signalingResponse struct {
-	Type signalingRespType
+type signalingEvent struct {
+	Type signalingType
 	Data json.RawMessage
 }
 
