@@ -1,57 +1,78 @@
-import { callOutData, clientData, signalingMsg, signalingType } from "./msgs"
-import { addSysMsg } from "./msgs.view"
+import { callOutData, clientData, signalingEvent, signalingType } from "./msgs"
 
-const msgObservers: Array<(msg: signalingMsg) => any> = []
-function onObserverFire (msg: signalingMsg<any>) {
-    msgObservers.forEach(o => o(msg))
+export enum signalingObserveType {
+    Open,
+    Close,
+    Name,
+    Business,
+    Connecting,
 }
 
-const ws = new WebSocket(`ws://${location.hostname}:8080/signaling`)
+interface observeMsg {
+    type: signalingObserveType
+    msg?: signalingEvent<any>
+}
 
-var myName: string
-sendMsg<null>({ Type: signalingType.Hello })
+const signalingObservers: Array<(msg: observeMsg) => any> = []
+const signalingHandlers: Array<(msg: signalingEvent) => any> = []
 
-ws.addEventListener("message", (evt: MessageEvent) => {
-    let msg = JSON.parse(evt.data) as signalingMsg<any>
-    if (msg.Type === signalingType.Hello) {
-        msg = msg as signalingMsg<clientData>
-        myName = msg.Data?.Name
-        addSysMsg(`获得名称：${myName}`)
-    }
-    onObserverFire(msg)
-})
+let myName: string
+let ws: WebSocket
 
-export function registerMsgHandler<T = signalingMsg> (handler: (msg: T) => any) {
+function connect () {
+    onObserverFire({ type: signalingObserveType.Connecting })
+    ws = new WebSocket(process.env.SIGNALING_URL || `ws://${location.hostname}:8080/signaling`)
+    ws.addEventListener("open", () => onObserverFire({ type: signalingObserveType.Open }))
+    ws.addEventListener("close", () => {
+        onObserverFire({ type: signalingObserveType.Close })
+        connect()
+    })
     ws.addEventListener("message", (evt: MessageEvent) => {
-        const msg = JSON.parse(evt.data)
-        handler(msg)
+        let msg = JSON.parse(evt.data) as signalingEvent<any>
+        if (msg.Type === signalingType.Hello) {
+            msg = msg as signalingEvent<clientData>
+            myName = msg.Data?.Name
+            onObserverFire({ type: signalingObserveType.Name })
+        }
+        onSignalingFire(evt)
+        onBizObserverFire(msg)
     })
+    sendMsg<null>({ Type: signalingType.Hello })
+}
+connect()
+
+function onObserverFire (msg: observeMsg) {
+    Promise.resolve().then(() =>
+        signalingObservers.forEach(o => o(msg))
+    )
+}
+function onBizObserverFire (msg: signalingEvent<any>) {
+    onObserverFire({ type: signalingObserveType.Business, msg })
 }
 
-export function registerSignalingObserver (observer: (msg: signalingMsg) => any) {
-    msgObservers.push(observer)
+function onSignalingFire (evt: MessageEvent) {
+    const msg = JSON.parse(evt.data)
+    signalingHandlers.forEach(h => h(msg))
 }
 
-export function onOpen (handler: () => any) {
-    if (ws.readyState === ws.OPEN) {
-        return handler()
-    }
-    ws.addEventListener("open", function onOpenEvt () {
-        ws.removeEventListener("open", onOpenEvt)
-        handler()
-    })
+export function registerSignalingHandler (handler: (msg: signalingEvent) => any) {
+    signalingHandlers.push(handler)
 }
 
-export function sendMsg<T = callOutData> (msg: signalingMsg<T>) {
+export function registerSignalingObserver (observer: (msg: observeMsg) => any) {
+    signalingObservers.push(observer)
+}
+
+export function sendMsg<T = callOutData> (msg: signalingEvent<T>) {
     if (ws.readyState === ws.OPEN) {
         ws.send(JSON.stringify(msg))
-        onObserverFire(msg)
+        onBizObserverFire(msg)
         return
     }
     ws.addEventListener("open", function onOpenSend () {
         ws.removeEventListener("open", onOpenSend)
         ws.send(JSON.stringify(msg))
-        onObserverFire(msg)
+        onBizObserverFire(msg)
     })
 }
 

@@ -7,7 +7,7 @@ export enum signalingType {
     Hello = "hello",
 }
 
-export interface signalingMsg<T = null> {
+export interface signalingEvent<T = null> {
     Type: signalingType
     Data?: T
 }

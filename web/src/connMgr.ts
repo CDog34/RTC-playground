@@ -1,5 +1,5 @@
-import { callInData, clientData, listData, peerMsgSender, signalingMsg, signalingType } from './msgs'
-import { registerMsgHandler } from './ws'
+import { callInData, clientData, listData, peerMsgSender, signalingEvent, signalingType } from './msgs'
+import { registerSignalingHandler } from './ws'
 import { Peer } from "./peer"
 
 interface connectionState {
@@ -21,7 +21,7 @@ function onConnectionObserve (msg: connectionState) {
     connectionObserver.forEach(h => h(msg))
 }
 
-function msgHandler (msg: signalingMsg<callInData<RTCIceCandidate | RTCSessionDescription> | clientData | listData>) {
+function msgHandler (msg: signalingEvent<callInData<RTCIceCandidate | RTCSessionDescription> | clientData | listData>) {
     switch (msg.Type) {
         case signalingType.List:
             handleList(msg.Data as listData)
@@ -42,7 +42,7 @@ function msgHandler (msg: signalingMsg<callInData<RTCIceCandidate | RTCSessionDe
 
     }
 }
-registerMsgHandler(msgHandler)
+registerSignalingHandler(msgHandler)
 
 function handleIceCandidate (data: callInData<RTCIceCandidate>) {
     const name = data.From
