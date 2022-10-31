@@ -17,17 +17,6 @@ var (
 	}
 )
 
-func handleCall(instName string, req signalingEvent) (to string, res signalingEvent, err error) {
-	var reqData callInData
-	if err = json.Unmarshal(req.Data, &reqData); err != nil {
-		return
-	}
-	res = signalingEvent{Type: req.Type}
-	to = reqData.To
-	res.Data, err = json.Marshal(callOutData{From: instName, Data: reqData.Data})
-	return
-}
-
 func registerPeerToSore(s *store) IncommingCbk {
 	return func(name string, wch chan<- signalingEvent) {
 		s.Register(name, wch)
