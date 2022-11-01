@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -25,9 +23,9 @@ type peer struct {
 	listPeersCbk    listPeersCbk
 }
 
-func newPeer(conn *websocket.Conn) (p *peer) {
+func newPeer(conn *websocket.Conn, name string) (p *peer) {
 	p = &peer{
-		Name:    strconv.FormatInt(time.Now().UnixNano(), 16),
+		Name:    name,
 		writeCh: make(chan signalingEvent, 10),
 		conn:    conn,
 	}
