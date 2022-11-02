@@ -83,11 +83,12 @@ func main() {
 	store := newStore()
 	registerPeer := registerPeerToSore(store)
 	http.HandleFunc("/signaling", func(rw http.ResponseWriter, r *http.Request) {
-		n := getNameFromReq(r)
-		if n == "" {
-			n = strconv.FormatInt(time.Now().UnixNano(), 16)
-			http.SetCookie(rw, &http.Cookie{Name: nameCookieName, Value: encodeName(n)})
-		}
+		n := strconv.FormatInt(time.Now().UnixNano(), 16)
+		// n := getNameFromReq(r)
+		// if n == "" {
+		// 	n = strconv.FormatInt(time.Now().UnixNano(), 16)
+		// 	http.SetCookie(rw, &http.Cookie{Name: nameCookieName, Value: encodeName(n)})
+		// }
 		wsconn, err := upgrader.Upgrade(rw, r, rw.Header().Clone())
 		if err != nil {
 			fmt.Printf("ws upgrade error: %+v\n", err)

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -21,6 +23,9 @@ type peer struct {
 	msgIncommingCbk IncommingCbk
 	msgOutgoingCbk  outgoingCbk
 	listPeersCbk    listPeersCbk
+	pingTicker      *time.Ticker
+	close           context.CancelFunc
+	ctx             context.Context
 }
 
 func newPeer(conn *websocket.Conn, name string) (p *peer) {
@@ -29,6 +34,28 @@ func newPeer(conn *websocket.Conn, name string) (p *peer) {
 		writeCh: make(chan signalingEvent, 10),
 		conn:    conn,
 	}
+	p.ctx, p.close = context.WithCancel(context.Background())
+	go func() {
+		for msg := range p.writeCh {
+			if err := p.conn.WriteJSON(msg); err != nil {
+				fmt.Printf("ws write error: %+v\n", err)
+			}
+		}
+	}()
+	p.pingTicker = time.NewTicker(10 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-p.pingTicker.C:
+				if err := p.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					fmt.Printf("ws ping error: %+v\n", err)
+				}
+			case <-p.ctx.Done():
+				return
+			}
+
+		}
+	}()
 	return
 }
 
@@ -50,18 +77,16 @@ func (p *peer) RegisterMsgExchangeCbks(incomming IncommingCbk, outgoing outgoing
 }
 
 func (p *peer) Close() {
+	if p.pingTicker != nil {
+		p.pingTicker.Stop()
+		p.close()
+	}
 	close(p.writeCh)
 	p.conn.Close()
 }
 
 func (p *peer) Start() (err error) {
-	go func() {
-		for msg := range p.writeCh {
-			if err := p.conn.WriteJSON(msg); err != nil {
-				fmt.Printf("ws write error: %+v\n", err)
-			}
-		}
-	}()
+
 	for {
 		var req signalingEvent
 		if err = p.conn.ReadJSON(&req); err != nil {
